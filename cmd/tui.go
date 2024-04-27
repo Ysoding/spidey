@@ -3,20 +3,23 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
-	"github.com/ysoding/spidey/config"
+	"github.com/ysoding/spidey/spidey"
 )
+
+const context = "Spidey"
 
 type stepInfo struct {
 	Placeholder string
 	Text        string
 }
 
-var steps = []stepInfo{{config.DEFALT_TARGET_URL, "What is the website url address you want to check?"},
+var steps = []stepInfo{{spidey.DEFAULT_TARGET_URL, "What is the website url address you want to check?"},
 	{"false", "Have you enabled checking external addresses?"}}
 
 type model struct {
@@ -26,18 +29,31 @@ type model struct {
 	started   bool
 }
 
-type startSpideyMsg struct{}
+type doingSpideyMsg struct{}
 
-func startSpidey() tea.Cmd {
+func doSpidey() tea.Cmd {
 	return func() tea.Msg {
-		return startSpideyMsg{}
+		return doingSpideyMsg{}
 	}
 }
 
-var cnf config.SpideyConfig
+var cnf spidey.Config
+var spideyResult *spidey.SpideyResult
+var startOnce sync.Once
+
+var events Events
+
+type Events struct {
+}
+
+func (Events) Event(context interface{}, event string, format string, data ...interface{}) {}
+
+func (Events) ErrorEvent(context interface{}, event string, err error, format string, data ...interface{}) {
+
+}
 
 func init() {
-	cnf = config.NewDefaultConfig()
+	cnf = spidey.NewDefaultConfig(events)
 }
 
 func initialModel() model {
@@ -64,9 +80,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
-	case startSpideyMsg:
+	case doingSpideyMsg:
 
-		m.done = true
+		startOnce.Do(func() {
+			var err error
+			spideyResult, err = spidey.Run(context, &cnf)
+			if err != nil {
+				//  TODO:
+			}
+		})
+
+		if spideyResult != nil {
+			m.started = false
+			m.done = true
+		}
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -74,12 +102,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "enter", " ":
-			if m.started || m.done {
+			if m.started {
+				return m, doSpidey()
+			}
+
+			if m.done {
 				return m, tea.Quit
 			}
 
 			if m.curStep == 0 && strings.TrimSpace(m.textInput.Value()) != "" {
-				cnf.TargetURL = m.textInput.Value()
+				cnf.URL = m.textInput.Value()
 			} else if m.curStep == 1 && strings.Contains(m.textInput.Value(), "y") {
 				cnf.EnableCheckExternal = true
 			}
@@ -90,7 +122,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.curStep == len(steps) {
 				m.started = true
-				return m, startSpidey()
+				return m, doSpidey()
 			}
 			fallthrough
 		default:
@@ -105,12 +137,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	quitMsg := "(esc or ctrl-c to quit)"
 
-	if m.started || m.done {
+	if m.done {
+		// TODO: print result
 		return fmt.Sprintf(
 			"😭 %s\n\n%s\n",
 			"All Done!",
 			quitMsg,
 		)
+	}
+
+	if m.started {
+		// TODO: print progress bar
+		return fmt.Sprintf("checking~~~\n\n%s\n", quitMsg)
 	}
 
 	return fmt.Sprintf(
