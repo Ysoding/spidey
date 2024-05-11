@@ -1,7 +1,9 @@
 package spidey
 
 import (
+	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +22,31 @@ type SpideyResult struct {
 	End       time.Time
 }
 
+func (sr *SpideyResult) ResultFormat() string {
+	var sb strings.Builder
+
+	sb.WriteString("--------------Timelapse---------------\n")
+	sb.WriteString(fmt.Sprintf(`
+	Start Time: %s
+	End Time: %s
+	Duration: %s
+	`, sr.Start, sr.End, sr.End.Sub(sr.Start)))
+
+	if len(sr.DeadLinks) > 0 {
+		sb.WriteString("--------------DEAD LINKS--------------\n")
+
+		for _, lr := range sr.DeadLinks {
+			sb.WriteString(fmt.Sprintf(`
+		URL: %s
+		Status Code: %d
+		Error: %s
+		`, lr.Link, lr.Status, lr.Error))
+		}
+	}
+
+	return sb.String()
+}
+
 type Events interface {
 	Event(context interface{}, event string, format string, data ...interface{})
 	ErrorEvent(context interface{}, event string, err error, format string, data ...interface{})
@@ -27,7 +54,7 @@ type Events interface {
 
 func Run(context interface{}, c *Config) (*SpideyResult, error) {
 	c.Events.Event(context, "Run", "Started: URL[%s]", c.URL)
-	res := &SpideyResult{DeadLinks: make([]LinkReport, 10)}
+	res := &SpideyResult{DeadLinks: make([]LinkReport, 0)}
 
 	path, err := url.Parse(c.URL)
 	if err != nil {
@@ -45,7 +72,7 @@ func Run(context interface{}, c *Config) (*SpideyResult, error) {
 	}
 
 	res.End = time.Now().UTC()
-	c.Events.Event(context, "Run", "Completed: ")
+	c.Events.Event(context, "Run", "Completed")
 	return res, nil
 }
 

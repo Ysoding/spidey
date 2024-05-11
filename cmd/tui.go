@@ -14,6 +14,8 @@ import (
 
 const context = "Spidey"
 
+var msg = "checking~~~"
+
 type stepInfo struct {
 	Placeholder string
 	Text        string
@@ -74,6 +76,10 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.done {
+		return m, tea.Quit
+	}
+
 	var cmd tea.Cmd
 
 	color.Set(color.FgCyan)
@@ -81,7 +87,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case doingSpideyMsg:
-
 		startOnce.Do(func() {
 			var err error
 			spideyResult, err = spidey.Run(context, &cnf)
@@ -140,15 +145,16 @@ func (m model) View() string {
 	if m.done {
 		// TODO: print result
 		return fmt.Sprintf(
-			"😭 %s\n\n%s\n",
+			"😭 %s\n\n%s\n\n%s\n",
 			"All Done!",
+			spideyResult.ResultFormat(),
 			quitMsg,
 		)
 	}
 
 	if m.started {
 		// TODO: print progress bar
-		return fmt.Sprintf("checking~~~\n\n%s\n", quitMsg)
+		return fmt.Sprintf("%s\n\n%s\n", msg, quitMsg)
 	}
 
 	return fmt.Sprintf(
