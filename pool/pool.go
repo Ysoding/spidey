@@ -31,13 +31,14 @@ func New() *Pool {
 }
 
 func (p *Pool) start() {
-	for i := 0; i < 1_000; i++ {
+	for i := 0; i < 1_00; i++ {
 		p.wg.Add(1)
 		go p.work()
 	}
 }
 
 func (p *Pool) work() {
+	defer p.wg.Done()
 done:
 	for {
 		select {
@@ -47,7 +48,6 @@ done:
 			break done
 		}
 	}
-	p.wg.Done()
 }
 
 func (p *Pool) execute(task Task) {

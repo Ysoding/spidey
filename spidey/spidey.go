@@ -57,6 +57,7 @@ func start(c *Config, path *url.URL, deadCh chan LinkReport) {
 	var mu sync.RWMutex
 	pool := pool.New()
 
+	wait.Add(1)
 	pool.Do("start", &pathBot{
 		path:    path.String(),
 		deadCh:  deadCh,
@@ -80,7 +81,6 @@ type pathBot struct {
 
 func (p pathBot) Work(context interface{}) {
 	defer p.wait.Done()
-
 	p.mu.RLock()
 	exists := p.visited[p.path]
 	p.mu.RUnlock()
@@ -94,4 +94,5 @@ func (p pathBot) Work(context interface{}) {
 	p.mu.Unlock()
 	// TODO:
 
+	time.Sleep(2 * time.Second)
 }
