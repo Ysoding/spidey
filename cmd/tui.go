@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +30,7 @@ type model struct {
 	textInput textinput.Model
 	done      bool
 	started   bool
+	showText  string
 }
 
 type doingSpideyMsg struct{}
@@ -39,8 +41,11 @@ func doSpidey() tea.Cmd {
 	}
 }
 
+type tickMsg struct {
+}
+
 var cnf spidey.Config
-var spideyResult *spidey.SpideyResult
+var spideyResult string
 var startOnce sync.Once
 
 var events Events
@@ -76,28 +81,35 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.done {
-		return m, tea.Quit
-	}
-
 	var cmd tea.Cmd
 
 	color.Set(color.FgCyan)
 
 	switch msg := msg.(type) {
+	case tickMsg:
+		if len(m.showText) < len(spideyResult) {
+			m.showText += string(spideyResult[len(m.showText)])
+			return m, tea.Tick(time.Millisecond, func(time.Time) tea.Msg {
+				return tickMsg{}
+			})
+		}
+		return m, nil
 
 	case doingSpideyMsg:
 		startOnce.Do(func() {
-			var err error
-			spideyResult, err = spidey.Run(context, &cnf)
+			sr, err := spidey.Run(context, &cnf)
 			if err != nil {
 				//  TODO:
 			}
+			spideyResult = sr.ResultFormat()
 		})
 
-		if spideyResult != nil {
+		if spideyResult != "" {
 			m.started = false
 			m.done = true
+			return m, tea.Tick(time.Millisecond, func(time.Time) tea.Msg {
+				return tickMsg{}
+			})
 		}
 
 		return m, nil
@@ -144,12 +156,13 @@ func (m model) View() string {
 
 	if m.done {
 		// TODO: print result
-		return fmt.Sprintf(
-			"😭 %s\n\n%s\n\n%s\n",
-			"All Done!",
-			spideyResult.ResultFormat(),
-			quitMsg,
-		)
+		return fmt.Sprintf("%s", m.showText)
+		// return fmt.Sprintf(
+		// 	"😭 %s\n\n%s\n\n%s\n",
+		// 	"All Done!",
+		// 	m.showText,
+		// 	quitMsg,
+		// )
 	}
 
 	if m.started {

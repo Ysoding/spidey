@@ -2,18 +2,21 @@ package spidey
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/ysoding/spidey/pool"
+	"golang.org/x/net/html/charset"
 )
 
 type LinkReport struct {
 	Link   string
 	Status int
-	Error  string
+	Error  error
 }
 
 type SpideyResult struct {
@@ -121,5 +124,62 @@ func (p pathBot) Work(context interface{}) {
 	p.mu.Unlock()
 	// TODO:
 
-	time.Sleep(2 * time.Second)
+	links := make(chan string)
+	if err := getAllLinks(p.path, links); err != nil {
+		p.deadCh <- LinkReport{Link: p.path, Status: http.StatusInternalServerError, Error: err}
+		return
+	}
+
+	for link := range links {
+		p.deadCh <- LinkReport{Link: link, Status: http.StatusOK, Error: nil}
+	}
+}
+
+func getAllLinks(url string, port chan string) error {
+	// src href
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	ct := resp.Header.Get("Content-Type")
+	bodyReader, err := charset.NewReader(resp.Body, ct)
+	if err != nil {
+		return err
+	}
+
+	doc, err := goquery.NewDocumentFromReader(bodyReader)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		defer close(port)
+
+		doc.Find("[src]").Each(func(_ int, s *goquery.Selection) {
+			src, exists := s.Attr("src")
+			if !exists {
+				return
+			}
+			if strings.Contains(src, "javascript:void(0)") {
+				return
+			}
+			port <- src
+		})
+
+		doc.Find("[href]").Each(func(_ int, s *goquery.Selection) {
+			href, exists := s.Attr("href")
+			if !exists {
+				return
+			}
+			if strings.Contains(href, "javascript:void(0)") {
+				return
+			}
+			port <- href
+		})
+
+	}()
+
+	return nil
 }
