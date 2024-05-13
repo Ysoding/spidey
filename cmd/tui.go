@@ -50,15 +50,6 @@ var startOnce sync.Once
 
 var events Events
 
-type Events struct {
-}
-
-func (Events) Event(context interface{}, event string, format string, data ...interface{}) {}
-
-func (Events) ErrorEvent(context interface{}, event string, err error, format string, data ...interface{}) {
-
-}
-
 func init() {
 	cnf = spidey.NewDefaultConfig(events)
 }
@@ -155,14 +146,7 @@ func (m model) View() string {
 	quitMsg := "(esc or ctrl-c to quit)"
 
 	if m.done {
-		// TODO: print result
-		return fmt.Sprintf("%s", m.showText)
-		// return fmt.Sprintf(
-		// 	"😭 %s\n\n%s\n\n%s\n",
-		// 	"All Done!",
-		// 	m.showText,
-		// 	quitMsg,
-		// )
+		return fmt.Sprintf("%s\n\n%s\n", m.showText, quitMsg)
 	}
 
 	if m.started {
